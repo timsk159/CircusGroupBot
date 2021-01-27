@@ -1,0 +1,58 @@
+!NewTemplate {templatename} {tanks} {healers} {dds}
+  This will create a new template, which can be used later to create events easier
+  Example:
+    !NewTemplate "My Trial" 2 2 8
+
+!DeleteTemplate {templatename}
+  This will delete the given template
+  WARNING: There is no confirmation, this will immediately delete the template
+  Example:
+    !DeleteTemplate "My Trial"
+
+!ListTemplates
+  This will reply with infomation on all saved templates
+  Example:
+    !ListTemplates
+
+!GetTemplate {templatename}
+  This will reply with detailed infomation on the given template
+  Example:
+    !GetTemplate "My Trial"
+
+!NewEvent {eventname} {dateandtime} {description}
+  The simplest way to make a new event. Useful for lorebook runs, or other events that don't need specific roles
+  NOTE: Description is optional, you can leave it blank if you like
+  Examples:
+    !NewEvent "My Lorebook Run" Today
+    !NewEvent "My Lorebook Run" Today "Chilled event to collect lorebooks in Deshaan!"
+
+!NewEventByTemplate {templatename} {eventname} {dateandtime} {description}
+  The easiest way to make an event
+  Will use the required roles in the given template
+  NOTE: Description is optional, you can leave it blank if you like.
+  Examples:
+    !NewEvent "vSS" "Vet Trial Progression" Today
+    !NewEvent "vSS" "Vet Trial Progression" Today "We'll do this first time, no worries"
+
+!NewEvent {eventname} {dateandtime} {description} {tanks} {dds} {healers}
+  The advanced way to make a new event. Allows you to specify how many of each role you require.
+  If your using this often, consider making a template to handle this type of event.
+  NOTE: Description is optional, you can leave it blank if you like.
+  Examples:
+    !NewEvent "Normal Dungeon Farming" Today 1 3 0
+    !NewEvent "Normal Dungeon Farming" Today "Fast runs through normal dungeons" 1 3 0
+
+
+Debug commands, usable by Admins only:
+!testcommand
+  This is a simple command to make sure the bot is alive.
+  The bot should respond with "Hello"
+
+
+!cleardb
+  This will clear all events and all templates that are currently saved.
+  WARNING: There is no "Are you sure" check. This will immediately wipe everything
+
+
+!printdb
+  The bot will reply with some info about the saved templates and saved events

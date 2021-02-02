@@ -14,10 +14,10 @@ from python.event import update_event
 from python.event import update_event_by_template
 from python.event import delete_all_events
 from python.event import get_all_events
-from python.event import set_message_ID
-from python.event import update_signups
+from python.event import Event
 
 from python.signup import Signup
+from python.signup import Role
 
 bot = commands.Bot(command_prefix='!')
 
@@ -44,7 +44,9 @@ async def handle_reaction(payload):
   if(payload.user_id == bot.user.id):
     return
 
-  if((payload.emoji.name != '🚑') and (payload.emoji.name != '🛡️') and (payload.emoji.name != '⚔')):
+  role = Role.GetRoleFromEmoji(payload.emoji.name)
+
+  if(role == None):
     return
   
   all_events = get_all_events()
@@ -55,42 +57,35 @@ async def handle_reaction(payload):
     print("Didn't find event")
     return
 
-  role = "Tank"
-  if(payload.emoji.name == '🚑'):
-    role = "Healer"
-  elif(payload.emoji.name == '⚔'):
-    role = "DD"
-  
   joined = False
 
-  signup = Signup("", -1)
+  signup = Signup(None, -1, False)
 
   if(payload.event_type == "REACTION_ADD"):
-    signup = Signup(role, payload.user_id)
-    event.signups.append(signup)
+    signup = event.add_signup(role, payload.user_id)
     joined = True
   elif(payload.event_type == "REACTION_REMOVE"):
-    signup = next((s for s in event.signups if s.memberID == payload.user_id), None)
-    event.signups.remove(signup)
+    signup = event.remove_signup(role, payload.user_id)
 
-  await send_signup_message(channel, event, signup, joined)
-  update_signups(event)
+  await send_signup_message(channel, event, signup.role, payload.user_id, joined)
 
   message_str = get_event_message_str(event)
   await message.edit(content=str(message_str))
 
-async def send_signup_message(channel, event, signup, joined):
+async def send_signup_message(channel, event, role, memberID, joined):
+  role_emoji = Role.GetEmoji(role)
+
   if(joined):
-    await channel.send("<@{memberID}> Signed up to {eventname} as {role}".format(memberID=signup.memberID, eventname=event.name, role=signup.role))
+    await channel.send("<@{memberID}> Signed up to {eventname} as {role}".format(memberID=memberID, eventname=event.name, role=role_emoji))
   else:
-    await channel.send("<@{memberID}> is no longer joining {eventname} as {role}".format(memberID=signup.memberID, eventname=event.name, role=signup.role))
+    await channel.send("<@{memberID}> is no longer joining {eventname} as {role}".format(memberID=memberID, eventname=event.name, role=role_emoji))
 
 
 #templates:
 
 @bot.command(name='NewTemplate')
-async def _create_template(ctx, template_name, tanks: int, healers: int, dds: int):
-  update_event_template(template_name, tanks, healers, dds)
+async def _create_template(ctx, template_name, tanks: int, healers: int, dds: int, runners: int = 0):
+  update_event_template(template_name, tanks, healers, dds, runners)
   await ctx.send("Created new template called: " + template_name)
 
 
@@ -115,8 +110,8 @@ async def _get_template(ctx, template_name):
 #events:
 
 @bot.command(name='NewEvent')
-async def _new_event(ctx, eventname, dateandtime, description = "", tanks: int = 0, healers: int = 0, dds: int = 0):
-  event = update_event(eventname, ctx.author.id, description, dateandtime, tanks, healers, dds)
+async def _new_event(ctx, eventname, dateandtime, description = "", tanks: int = 0, healers: int = 0, dds: int = 0, runners: int = 0):
+  event = update_event(eventname, ctx.author.id, description, dateandtime, tanks, healers, dds, runners)
   await send_event_message(ctx, event)
 
 @bot.command(name='NewEventByTemplate')
@@ -128,52 +123,43 @@ async def send_event_message(ctx, event):
   message_str = get_event_message_str(event)
  
   message = await ctx.send(message_str)
-  set_message_ID(event, message.id)
-  await add_reactions(ctx, message)
+  event.set_message_ID(message.id)
+  await add_reactions(ctx, message, event)
 
 def get_event_message_str(event):
   message_str = event.GetAnnouncement()
-  message_str = add_signups(message_str, event)
+  message_str = add_signups_to_message(message_str, event)
+  message_str += "\n"
   message_str = add_signup_instructions(message_str, event)
 
   return message_str
 
-async def add_reactions(ctx, message):
-  await message.add_reaction('🛡️')
-  await message.add_reaction('🚑')
-  await message.add_reaction('⚔')
+async def add_reactions(ctx, message, event):
+  for role in Role:
+    if(role == Role.Runner and event.runners == 0):
+      continue
+    await message.add_reaction(Role.GetEmoji(role))
 
 def add_signup_instructions(message_str, event):
-  message_str += """
-React with:
-🛡️ to sign up as Tank
-🚑 to sign up as Healer
-⚔ to sign up as Damage Dealer"""
+  message_str += "React with:\n"
+  allRoles = list(Role)
+  for role in allRoles:
+    if(role == Role.Runner):
+      if(event.runners == 0):
+        continue
+    message_str += Role.GetEmoji(role) + " to sign up as " + Role.GetPrettyString(role) + "\n"
+
   return message_str
 
-def add_signups(message_str, event):
-  tanks = list(filter(lambda x: x.role == "Tank", event.signups))
-  healers = list(filter(lambda x: x.role == "Healer", event.signups))
-  dds = list(filter(lambda x: x.role == "DD", event.signups))
+def add_signups_to_message(message_str, event):
+  allSignups = event.signups
+  #allSignups.sort()
 
-  empty_tanks = max(0, event.tanks - len(tanks))
-  empty_healers = max(0, event.healers - len(healers))
-  empty_dds = max(0, event.dds - len(dds))
-
-  for i in range(0, len(tanks)):
-      message_str += "🛡️:<@{memberID}>\n".format(memberID=tanks[i].memberID)
-  for i in range(0, empty_tanks):
-      message_str += "🛡️:\n"
-
-  for i in range(0, len(healers)):
-      message_str += "🚑:<@{memberID}>\n".format(memberID=healers[i].memberID)
-  for i in range(0, empty_healers):
-      message_str += "🚑:\n"
-
-  for i in range(0, len(dds)):
-      message_str += "⚔:<@{memberID}>\n".format(memberID=dds[i].memberID)
-  for i in range(0, empty_dds):
-      message_str += "⚔:\n"
+  for signup in allSignups:
+    if(signup.isRequired and signup.memberID == -1):
+      message_str += Role.GetEmoji(signup.role) + ":\n"
+    else:
+      message_str += Role.GetEmoji(signup.role) + ":<@{memberID}>\n".format(memberID=signup.memberID)
 
   return message_str
 
@@ -213,11 +199,12 @@ async def _print_db(ctx):
       message_str += event.GetPrettyDescription() + "\n"
   await ctx.send(message_str)
 
-  for event in events:
-    print("ID: " + str(event.eventID) + " Name: " + event.name + " MsgID: " + str(event.messageID) ) 
-    print("Signups:")
-    for signup in event.signups:
-      print(signup.role + " " + str(signup.memberID))
+  if(not events is None):
+    for event in events:
+      print("ID: " + str(event.eventID) + " Name: " + event.name + " MsgID: " + str(event.messageID) ) 
+      print("Signups:")
+      for signup in event.signups:
+        print(Role.GetPrettyString(signup.role) + " " + str(signup.memberID))
 
 
 keepalive.keep_alive()

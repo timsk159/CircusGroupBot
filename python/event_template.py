@@ -4,14 +4,15 @@ import jsonpickle
 from replit import db
 
 class EventTemplate:
-  def __init__(self, name, tanks, healers, dds):
+  def __init__(self, name, tanks, healers, dds, runners):
     self.name = name
     self.tanks = tanks
     self.healers = healers
     self.dds = dds
+    self.runners = runners
 
   def GetPrettyDescription(self):
-    return self.name + " Tanks: " + str(self.tanks) + " Healers: " + str(self.healers) + " DDs: " + str(self.dds)
+    return self.name + " Tanks: " + str(self.tanks) + " Healers: " + str(self.healers) + " DDs: " + str(self.dds) + " Runners: " + str(self.runners)
   
   def ToJSON(self):
     return jsonpickle.encode(self)
@@ -21,10 +22,9 @@ class EventTemplate:
     return jsonpickle.decode(json_obj)
 
 
-def update_event_template(template_name, tanks: int, healers: int, dds: int):
-  template_obj = EventTemplate(template_name, tanks, healers, dds)
+def update_event_template(template_name, tanks: int, healers: int, dds: int, runners: int):
+  template_obj = EventTemplate(template_name, tanks, healers, dds, runners)
   template_json = template_obj.ToJSON()
-
  
   if "event_templates" in db.keys():
     event_templates = db["event_templates"]

@@ -85,12 +85,19 @@ async def send_signup_message(channel, event, role, memberID, joined):
 
 @bot.command(name='NewTemplate')
 async def _create_template(ctx, template_name, tanks: int, healers: int, dds: int, runners: int = 0):
+  if(not ctx.message.author.server_permissions.administrator):
+    ctx.send("Sorry, you must be an admin to perform this command")
+    return
+
   update_event_template(template_name, tanks, healers, dds, runners)
   await ctx.send("Created new template called: " + template_name)
 
 
 @bot.command(name='DeleteTemplate')
 async def _delete_template(ctx, template_name):
+  if(not ctx.message.author.server_permissions.administrator):
+    ctx.send("Sorry, you must be an admin to perform this command")
+    return
   delete_event_template(template_name)
   await ctx.send("Deleted template called: " + template_name)
 
@@ -153,8 +160,7 @@ def add_signup_instructions(message_str, event):
 
 def add_signups_to_message(message_str, event):
   allSignups = event.signups
-  #allSignups.sort()
-
+  
   for signup in allSignups:
     if(signup.isRequired and signup.memberID == -1):
       message_str += Role.GetEmoji(signup.role) + ":\n"
@@ -174,12 +180,18 @@ async def test_command(ctx):
 
 @bot.command(name='cleardb')
 async def _clear_db(ctx):
+  if(not ctx.message.author.server_permissions.administrator):
+    ctx.send("Sorry, you must be an admin to perform this command")
+    return
   delete_all_events()
   delete_all_templates()
   await ctx.send("Cleared DB")
 
 @bot.command(name='printdb')
 async def _print_db(ctx):
+  if(not ctx.message.author.server_permissions.administrator):
+    ctx.send("Sorry, you must be an admin to perform this command")
+    return
   templates = get_all_templates()
   events = get_all_events()
 

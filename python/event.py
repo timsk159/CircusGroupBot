@@ -3,6 +3,7 @@ import jsonpickle
 import datetime
 
 from replit import db
+
 from python.event_template import get_template
 
 from python.signup import Signup
@@ -123,11 +124,12 @@ def get_all_events():
     events = [Event.FromJSON(e) for e in events_raw.values()]
     return events
 
-#I'm sure this will be fiiiiine
 def get_new_eventID():
   if "events" in db.keys():
     events = db["events"]
-    return str(int(max(events.keys())) + 1)
+    maxKey = int(max(events, key=int))
+    maxKey += 1
+    return str(maxKey)
   else:
     return 1
 

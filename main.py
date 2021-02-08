@@ -3,6 +3,7 @@ import discord
 import keepalive
 
 from discord.ext import commands
+from discord.ext.commands import has_permissions
 
 from python.event_template import update_event_template
 from python.event_template import delete_event_template
@@ -19,7 +20,7 @@ from python.event import Event
 from python.signup import Signup
 from python.signup import Role
 
-bot = commands.Bot(command_prefix='!')
+bot = commands.Bot(command_prefix='$')
 
 @bot.event
 async def on_ready():
@@ -36,10 +37,6 @@ async def on_raw_reaction_remove(payload):
 
 async def handle_reaction(payload):
   channel = bot.get_channel(payload.channel_id)
-  message = await channel.fetch_message(payload.message_id)
-
-  if(message.author.id != bot.user.id):
-    return
   
   if(payload.user_id == bot.user.id):
     return
@@ -54,7 +51,7 @@ async def handle_reaction(payload):
 
   event = next((e for e in all_events if e.messageID == messageID), None)
   if(event is None):
-    print("Didn't find event")
+    print("Didn't find event " + " msgID: " + str(messageID))
     return
 
   joined = False
@@ -70,6 +67,7 @@ async def handle_reaction(payload):
   await send_signup_message(channel, event, signup.role, payload.user_id, joined)
 
   message_str = get_event_message_str(event)
+  message = await channel.fetch_message(payload.message_id)
   await message.edit(content=str(message_str))
 
 async def send_signup_message(channel, event, role, memberID, joined):
@@ -84,20 +82,16 @@ async def send_signup_message(channel, event, role, memberID, joined):
 #templates:
 
 @bot.command(name='NewTemplate')
+@commands.has_role("ESO Officer")
 async def _create_template(ctx, template_name, tanks: int, healers: int, dds: int, runners: int = 0):
-  if(not ctx.message.author.server_permissions.administrator):
-    ctx.send("Sorry, you must be an admin to perform this command")
-    return
 
   update_event_template(template_name, tanks, healers, dds, runners)
   await ctx.send("Created new template called: " + template_name)
 
 
 @bot.command(name='DeleteTemplate')
+@commands.has_role("ESO Officer")
 async def _delete_template(ctx, template_name):
-  if(not ctx.message.author.server_permissions.administrator):
-    ctx.send("Sorry, you must be an admin to perform this command")
-    return
   delete_event_template(template_name)
   await ctx.send("Deleted template called: " + template_name)
 
@@ -179,19 +173,15 @@ async def test_command(ctx):
 
 
 @bot.command(name='cleardb')
+@commands.has_role("ESO Officer")
 async def _clear_db(ctx):
-  if(not ctx.message.author.server_permissions.administrator):
-    ctx.send("Sorry, you must be an admin to perform this command")
-    return
   delete_all_events()
   delete_all_templates()
   await ctx.send("Cleared DB")
 
 @bot.command(name='printdb')
+@commands.has_role("ESO Officer")
 async def _print_db(ctx):
-  if(not ctx.message.author.server_permissions.administrator):
-    ctx.send("Sorry, you must be an admin to perform this command")
-    return
   templates = get_all_templates()
   events = get_all_events()
 
@@ -213,7 +203,7 @@ async def _print_db(ctx):
 
   if(not events is None):
     for event in events:
-      print("ID: " + str(event.eventID) + " Name: " + event.name + " MsgID: " + str(event.messageID) ) 
+      print("ID: " + str(event.eventID) + " Name: " + event.name + " dateandtime: " + str(event.dateandtime) + " MsgID: " + str(event.messageID) ) 
       print("Signups:")
       for signup in event.signups:
         print(Role.GetPrettyString(signup.role) + " " + str(signup.memberID))

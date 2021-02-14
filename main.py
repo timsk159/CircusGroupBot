@@ -2,6 +2,8 @@ import os
 import discord
 import keepalive
 
+from datetime import datetime, timedelta
+
 from discord.ext import commands
 from discord.ext.commands import has_permissions
 
@@ -19,6 +21,8 @@ from python.event import Event
 
 from python.signup import Signup
 from python.signup import Role
+
+from replit import db
 
 bot = commands.Bot(command_prefix='$')
 
@@ -207,6 +211,46 @@ async def _print_db(ctx):
       print("Signups:")
       for signup in event.signups:
         print(Role.GetPrettyString(signup.role) + " " + str(signup.memberID))
+
+@bot.command(name='deleteoldevents')
+@commands.has_role("ESO Officer")
+async def _delete_old_events(ctx):
+  events = get_all_events()
+  eventsToRemove = []
+
+  allChannels = await ctx.guild.fetch_channels()
+
+  message = None
+
+#this is SUPER slow, need to find a better way...
+  for event in events:
+    for channel in allChannels:
+      try:
+        message = await channel.fetch_message(event.messageID)
+      except:
+        continue
+      if message is None:
+        continue
+
+#Usually means event was created in another guild (e.g: my test guild)
+    if(message is None):
+      continue
+
+    delta = datetime.now() - message.created_at
+
+    if(delta.days > 14):
+      eventsToRemove.append(event)
+      continue
+
+  rawEvents = db["events"]
+
+  for eventToRemove in eventsToRemove:
+    print("Would delete event with ID: " + str(eventToRemove.eventID))
+    del rawEvents[eventToRemove.eventID]
+
+  db["events"] = rawEvents
+
+  await ctx.send("Deleted: " + str(len(eventsToRemove)) + " Events")
 
 
 keepalive.keep_alive()

@@ -15,7 +15,7 @@ $NewEventByTemplate "templatename" "eventname" "dateandtime" "description"
     $NewEvent "vSS" "Vet Trial Progression" "Today at 19:00"
     $NewEvent "vSS" "Vet Trial Progression" "Today at 19:00" "We'll do this first time, no worries"
 
-$NewEvent "eventname" "dateandtime" "description" "tanks" "dds" "healers" "runners"
+$NewEvent "eventname" "dateandtime" "description" tanks healers dds runners
   The advanced way to make a new event. Allows you to specify how many of each role you require.
   If your using this often, consider making a template to handle this type of event.
   NOTE: Description is optional, you can leave it blank if you like.
@@ -40,7 +40,7 @@ $GetTemplate "templatename"
 
 
 Admin Only Commands:
-$NewTemplate "templatename" "tanks" "healers" "dds" "runners"
+$NewTemplate "templatename" tanks healers dds runners
   This will create a new template, which can be used later to create events easier
   NOTE: runners is optional, you can leave it blank if you like
   Example:

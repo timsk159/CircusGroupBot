@@ -63,8 +63,15 @@ async def handle_reaction(payload):
   signup = Signup(None, -1, False)
 
   if(payload.event_type == "REACTION_ADD"):
-    signup = event.add_signup(role, payload.user_id)
-    joined = True
+    if(event.has_space_for_signup(role)):
+      signup = event.add_signup(role, payload.user_id)
+      joined = True
+    else:
+      await channel.send("Sorry <@{memberID}> we don't need anymore {role}\'s".format(memberID=payload.user_id, role=Role.GetEmoji(role)))
+      message = await channel.fetch_message(payload.message_id)
+      
+      await message.remove_reaction(payload.emoji, payload.member)
+      return
   elif(payload.event_type == "REACTION_REMOVE"):
     signup = event.remove_signup(role, payload.user_id)
 
@@ -128,6 +135,7 @@ async def send_event_message(ctx, event):
   message_str = get_event_message_str(event)
  
   message = await ctx.send(message_str)
+  await message.pin()
   event.set_message_ID(message.id)
   await add_reactions(ctx, message, event)
 

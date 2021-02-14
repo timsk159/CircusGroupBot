@@ -61,6 +61,17 @@ Leader: <@{leader}>
     self.update_signups()
     return signup
 
+  def has_space_for_signup(self, role):
+    if(not any(s.role == role and s.isRequired for s in self.signups)):
+      return True
+
+    for signup in self.signups:
+      if(signup.role == role):
+        if(signup.memberID == -1):
+          return True
+      
+    return False
+
   def remove_signup(self, role, memberID):
     signup = next((s for s in self.signups if s.role == role and s.memberID == memberID), None)
     if(signup is None):

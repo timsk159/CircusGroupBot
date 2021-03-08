@@ -1,6 +1,8 @@
 import os
 import discord
 import keepalive
+import asyncio
+import typing
 
 from datetime import datetime, timedelta
 
@@ -26,6 +28,8 @@ from replit import db
 
 bot = commands.Bot(command_prefix='$')
 
+sem = asyncio.Semaphore()
+
 @bot.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(bot))
@@ -40,46 +44,47 @@ async def on_raw_reaction_remove(payload):
   await handle_reaction(payload)
 
 async def handle_reaction(payload):
-  channel = bot.get_channel(payload.channel_id)
-  
-  if(payload.user_id == bot.user.id):
-    return
-
-  role = Role.GetRoleFromEmoji(payload.emoji.name)
-
-  if(role == None):
-    return
-  
-  all_events = get_all_events()
-  messageID = payload.message_id
-
-  event = next((e for e in all_events if e.messageID == messageID), None)
-  if(event is None):
-    print("Didn't find event " + " msgID: " + str(messageID))
-    return
-
-  joined = False
-
-  signup = Signup(None, -1, False)
-
-  if(payload.event_type == "REACTION_ADD"):
-    if(event.has_space_for_signup(role)):
-      signup = event.add_signup(role, payload.user_id)
-      joined = True
-    else:
-      await channel.send("Sorry <@{memberID}> we don't need anymore {role}\'s".format(memberID=payload.user_id, role=Role.GetEmoji(role)))
-      message = await channel.fetch_message(payload.message_id)
-      
-      await message.remove_reaction(payload.emoji, payload.member)
+  async with sem:
+    channel = bot.get_channel(payload.channel_id)
+    
+    if(payload.user_id == bot.user.id):
       return
-  elif(payload.event_type == "REACTION_REMOVE"):
-    signup = event.remove_signup(role, payload.user_id)
 
-  await send_signup_message(channel, event, signup.role, payload.user_id, joined)
+    role = Role.GetRoleFromEmoji(payload.emoji.name)
 
-  message_str = get_event_message_str(event)
-  message = await channel.fetch_message(payload.message_id)
-  await message.edit(content=str(message_str))
+    if(role == None):
+      return
+    
+    all_events = get_all_events()
+    messageID = payload.message_id
+
+    event = next((e for e in all_events if e.messageID == messageID), None)
+    if(event is None):
+      print("Didn't find event " + " msgID: " + str(messageID))
+      return
+
+    joined = False
+
+    signup = Signup(None, -1, False)
+
+    if(payload.event_type == "REACTION_ADD"):
+      if(event.has_space_for_signup(role)):
+        signup = event.add_signup(role, payload.user_id)
+        joined = True
+      else:
+        await channel.send("Sorry <@{memberID}> we don't need anymore {role}\'s".format(memberID=payload.user_id, role=Role.GetEmoji(role)))
+        message = await channel.fetch_message(payload.message_id)
+        
+        await message.remove_reaction(payload.emoji, payload.member)
+        return
+    elif(payload.event_type == "REACTION_REMOVE"):
+      signup = event.remove_signup(role, payload.user_id)
+
+    await send_signup_message(channel, event, signup.role, payload.user_id, joined)
+
+    message_str = get_event_message_str(event)
+    message = await channel.fetch_message(payload.message_id)
+    await message.edit(content=str(message_str))
 
 async def send_signup_message(channel, event, role, memberID, joined):
   role_emoji = Role.GetEmoji(role)
@@ -122,7 +127,10 @@ async def _get_template(ctx, template_name):
 #events:
 
 @bot.command(name='NewEvent')
-async def _new_event(ctx, eventname, dateandtime, description = "", tanks: int = 0, healers: int = 0, dds: int = 0, runners: int = 0):
+async def _new_event(ctx, eventname: str, dateandtime: str,
+tanks: typing.Optional[int] = 0, healers: typing.Optional[int] = 0, 
+dds: typing.Optional[int] = 0, runners: typing.Optional[int] = 0,
+description: typing.Optional[str] = None):
   event = update_event(eventname, ctx.author.id, description, dateandtime, tanks, healers, dds, runners)
   await send_event_message(ctx, event)
 
@@ -131,11 +139,63 @@ async def _new_event_by_template(ctx, templatename, eventname, dateandtime, desc
   event = update_event_by_template(templatename, eventname, ctx.author.id, description, dateandtime)
   await send_event_message(ctx, event)
 
+#horrible hack but I broke shit and I'm tired
+@bot.command(name='CleanEvents')
+async def _clean_events(ctx):
+  allEvents = get_all_events();
+  event = allEvents[-1]
+  for event in allEvents:
+    try:
+      message = await ctx.channel.fetch_message(event.messageID);
+      if message is not None:
+        reactionUserIDs = [];
+        for reaction in message.reactions:
+          reactionUsers = await reaction.users().flatten()
+          for user in reactionUsers:
+            if(user.id != bot.user.id):
+              reactionUserIDs.append(user.id)
+
+        #add people that reacted but aren't signedup
+        for reaction in message.reactions:
+          reactionUsers = await reaction.users().flatten()
+          for user in reactionUsers:
+            if(user.id == bot.user.id):
+              continue
+            userID = user.id
+            role = Role.GetRoleFromEmoji(reaction.emoji)
+
+            found_signup = None;
+            for signup in event.signups:
+              if(signup.memberID == userID):
+                found_signup = signup
+                break
+            if(found_signup is None):
+              event.add_signup(role, userID)
+
+        #remove people that didn't react but are signed up
+        for signup in event.signups:
+          if not signup.memberID in reactionUserIDs:
+            event.remove_signup(signup.role, signup.memberID)
+
+        message_str = get_event_message_str(event)
+        message = await ctx.channel.fetch_message(message.id)
+        await message.edit(content=str(message_str))
+    except:
+      print("Not found")
+
+  print("Fin")
+
+
 async def send_event_message(ctx, event):
   message_str = get_event_message_str(event)
  
   message = await ctx.send(message_str)
-  await message.pin()
+  
+  try:
+    await message.pin()
+  except:
+    print("Unable to pin message")
+
   event.set_message_ID(message.id)
   await add_reactions(ctx, message, event)
 
@@ -211,7 +271,7 @@ async def _print_db(ctx):
     message_str += "Events:\n"
     for event in events:
       message_str += event.GetPrettyDescription() + "\n"
-  await ctx.send(message_str)
+  #await ctx.send(message_str)
 
   if(not events is None):
     for event in events:

@@ -139,52 +139,6 @@ async def _new_event_by_template(ctx, templatename, eventname, dateandtime, desc
   event = update_event_by_template(templatename, eventname, ctx.author.id, description, dateandtime)
   await send_event_message(ctx, event)
 
-#horrible hack but I broke shit and I'm tired
-@bot.command(name='CleanEvents')
-async def _clean_events(ctx):
-  allEvents = get_all_events();
-  event = allEvents[-1]
-  for event in allEvents:
-    try:
-      message = await ctx.channel.fetch_message(event.messageID);
-      if message is not None:
-        reactionUserIDs = [];
-        for reaction in message.reactions:
-          reactionUsers = await reaction.users().flatten()
-          for user in reactionUsers:
-            if(user.id != bot.user.id):
-              reactionUserIDs.append(user.id)
-
-        #add people that reacted but aren't signedup
-        for reaction in message.reactions:
-          reactionUsers = await reaction.users().flatten()
-          for user in reactionUsers:
-            if(user.id == bot.user.id):
-              continue
-            userID = user.id
-            role = Role.GetRoleFromEmoji(reaction.emoji)
-
-            found_signup = None;
-            for signup in event.signups:
-              if(signup.memberID == userID):
-                found_signup = signup
-                break
-            if(found_signup is None):
-              event.add_signup(role, userID)
-
-        #remove people that didn't react but are signed up
-        for signup in event.signups:
-          if not signup.memberID in reactionUserIDs:
-            event.remove_signup(signup.role, signup.memberID)
-
-        message_str = get_event_message_str(event)
-        message = await ctx.channel.fetch_message(message.id)
-        await message.edit(content=str(message_str))
-    except:
-      print("Not found")
-
-  print("Fin")
-
 
 async def send_event_message(ctx, event):
   message_str = get_event_message_str(event)

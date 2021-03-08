@@ -19,6 +19,7 @@ from python.event import update_event
 from python.event import update_event_by_template
 from python.event import delete_all_events
 from python.event import get_all_events
+from python.event import find_event_with_commandMsg
 from python.event import Event
 
 from python.signup import Signup
@@ -33,6 +34,16 @@ sem = asyncio.Semaphore()
 @bot.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(bot))
+
+@bot.event
+async def on_message_edit(before, after):
+  foundEvent = find_event_with_commandMsg(before.id)
+  if(foundEvent is not None):
+    try:
+        print("Found event when editing, processing")
+        await bot.process_commands(after)
+    except:
+        print("Something went wrong when editing event")
 
 #signups
 @bot.event
@@ -131,7 +142,11 @@ async def _new_event(ctx, eventname: str, dateandtime: str,
 tanks: typing.Optional[int] = 0, healers: typing.Optional[int] = 0, 
 dds: typing.Optional[int] = 0, runners: typing.Optional[int] = 0,
 description: typing.Optional[str] = None):
-  event = update_event(eventname, ctx.author.id, description, dateandtime, tanks, healers, dds, runners)
+  rolesSum = tanks + healers + dds + runners
+  if(tanks > 16 or healers > 16 or dds > 16 or runners > 16 or rolesSum > 16):
+    await ctx.send("Sorry, you've asked for too many people! Was your command correct?")
+    return
+  event = update_event(eventname, ctx.author.id, description, dateandtime, tanks, healers, dds, runners, ctx.message.id)
   await send_event_message(ctx, event)
 
 @bot.command(name='NewEventByTemplate')
@@ -142,13 +157,19 @@ async def _new_event_by_template(ctx, templatename, eventname, dateandtime, desc
 
 async def send_event_message(ctx, event):
   message_str = get_event_message_str(event)
- 
-  message = await ctx.send(message_str)
-  
-  try:
-    await message.pin()
-  except:
-    print("Unable to pin message")
+  message = None;
+
+  if(event.messageID is not None and event.messageID > -1):
+    print("Event has a messageID already, editing")
+    message = await ctx.fetch_message(event.messageID)
+    print(message_str)
+    await message.edit(content=message_str)
+  else:
+    message = await ctx.send(message_str)
+    try:
+      await message.pin()
+    except:
+      print("Unable to pin message")
 
   event.set_message_ID(message.id)
   await add_reactions(ctx, message, event)

@@ -10,7 +10,7 @@ from python.signup import Signup
 from python.signup import Role
 
 class Event:
-  def __init__(self, eventID, name, leader, description, dateandtime, tanks = 0, healers = 0, dds = 0, runners = 0, messageID = -1):
+  def __init__(self, eventID, name, leader, description, dateandtime, tanks = 0, healers = 0, dds = 0, runners = 0, messageID = -1, commandMsg = -1):
     self.eventID = eventID
     self.name = name
     self.leader = leader
@@ -21,6 +21,7 @@ class Event:
     self.dds = dds
     self.runners = runners
     self.messageID = messageID
+    self.commandMsg = commandMsg
     self.signups = []
     for i in range(0, tanks):
       self.signups.append(Signup(Role.Tank, -1, True))
@@ -96,12 +97,29 @@ Leader: <@{leader}>
     events[self.eventID] = self.ToJSON()
     db["events"] = events
 
+  def set_commandMsg(self, commandMsg):
+    self.commandMsg = commandMsg
+    events = db["events"]
+    events[self.eventID] = self.ToJSON()
+    db["events"] = events
 
 
+def update_event(event_name, leader, description: str, dateandtime: datetime, tanks: int = 0, healers: int = 0, dds: int = 0, runners: int = 0, commandMsgID = -1):
+  event_obj = None
+  eventID = -1
+  if(commandMsgID > -1):
+    event_obj = find_event_with_commandMsg(commandMsgID)
+  if(event_obj is None):
+    eventID = get_new_eventID()
+    event_obj = Event(eventID, event_name, leader, description, dateandtime, tanks, healers, dds, runners)
+  else:
+    eventID = event_obj.eventID
+    messageID = event_obj.messageID
+    event_obj = Event(eventID, event_name, leader, description, dateandtime, tanks, healers, dds, runners)
+    event_obj.messageID = messageID
 
-def update_event(event_name, leader, description: str, dateandtime: datetime, tanks: int = 0, healers: int = 0, dds: int = 0, runners: int = 0):
-  eventID = get_new_eventID()
-  event_obj = Event(eventID, event_name, leader, description, dateandtime, tanks, healers, dds, runners)
+  event_obj.set_commandMsg(commandMsgID)
+
   event_json = event_obj.ToJSON()
 
   if "events" in db.keys():
@@ -112,6 +130,27 @@ def update_event(event_name, leader, description: str, dateandtime: datetime, ta
     db["events"] = {eventID: event_json}
   
   return event_obj
+
+def find_event_with_messageID(messageID):
+  if "events" in db.keys():
+    events = db["events"]
+    for event in events.values():
+      event_obj = Event.FromJSON(event)
+      if(event_obj.messageID == messageID):
+        return event_obj
+
+  return None
+
+def find_event_with_commandMsg(commandMsg):
+  if "events" in db.keys():
+    events = db["events"]
+    for event in events.values():
+      event_obj = Event.FromJSON(event)
+      if(hasattr(event_obj, 'commandMsg')):
+        if(event_obj.commandMsg == commandMsg):
+          return event_obj
+
+  return None
 
 def update_event_by_template(template_name, event_name, leader, description: str, dateandtime: datetime):
   template = get_template(template_name)
